@@ -1,3 +1,7 @@
 FROM alpine
 
 RUN apk add vim
+RUN apk add gcc
+RUN apk add --no-cache build-base
+
+COPY hello.c .
