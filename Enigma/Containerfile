@@ -1,0 +1,7 @@
+FROM alpine
+
+RUN apk add vim gcc libc-dev python3 curl
+
+RUN curl https://raw.githubusercontent.com/cd-c89/crypto/main/enigma/tester.py -o tester.py
+
+COPY enigma.c .
