@@ -12,14 +12,29 @@ void printb(char n) {
 
 }
 
+void itool() {
+	
+	printb(5 && 3);
+	printb(5 & 3);
+	printb(5 || 3);
+	printb(5 | 3);
+	printb(!0);
+	printb(1 != 0);
+
+}
+
 int main() {
-    
-    char test_values[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
-    for (int i = 0; i < sizeof(test_values) / sizeof(test_values[0]); i++) {
-        printb(test_values[i]);
-    }
+	/* Test printb
+	char test_values[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
-    return 0;
+	for (int i = 0; i < sizeof(test_values) / sizeof(test_values[0]); i++) {
+    		printb(test_values[i]);
+       	}
+	*/
+
+	itool();
+
+	return 0;
 }
 
