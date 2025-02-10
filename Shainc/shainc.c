@@ -25,7 +25,7 @@
 #define BIG_SIG1(x) (ROTATE(x, 6) ^ ROTATE(x, 11) ^ ROTATE(x, 25))
 
 /* initial hash values (h_0) */
-/* network endian */
+/* network endian */ 
 uint32_t H[8] = {
     0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
     0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19
@@ -54,7 +54,7 @@ uint32_t K[64] = {
 
 void pad_message(uint8_t *message, uint64_t total_length, uint64_t *padded_length) {
 
-    int i;
+    uint64_t i;
     uint64_t bit_length = total_length * 8;
     uint64_t new_length = (total_length + 1 + 8 + 63) & ~63;  
 
@@ -125,8 +125,8 @@ void print_hash(uint32_t *H) {
 
 int main(int argc, char *argv[]) {
 
-    size_t l, total_length = 0;
-    uint8_t m[64];
+    size_t i, l, total_length = 0;
+    uint8_t m[128];
     uint64_t padded_length;
     FILE *fp;
 
@@ -142,16 +142,33 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    while ((l = fread(m, 1, sizeof(m), fp)) > 0) {
+        total_length += l;
+
+        if (l == 64) {
+            process_chunk(m, H);
+        } else {
+    
+            pad_message(m, total_length, &padded_length);
+
+            for (i = 0; i < padded_length; i += 64) {
+                process_chunk(m + i, H);
+            }
+        }
+    }
+
+    /*
     while ((l = fread(m, 1, 64, fp)) == 64) {
 
         total_length += l;
-	process_chunk(m, H);
+        process_chunk(m, H);
 
     }
 
     pad_message(m, total_length, &padded_length);
 
     process_chunk(m, H);
+    */
 
     print_hash(H);
 
