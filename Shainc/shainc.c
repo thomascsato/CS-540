@@ -56,15 +56,23 @@ void pad_message(uint8_t *message, uint64_t total_length, uint64_t *padded_lengt
 
     uint64_t i;
     uint64_t bit_length = total_length * 8;
-    uint64_t new_length = (total_length + 1 + 8 + 63) & ~63;  
 
+    /* Calculates the new length of the message after padding
+     * i.e. rounds down to the nearest multiple of 64 after adding bytes */
+    uint64_t new_length = (total_length + 1 + 8 + 63) & ~63;
+
+    /* Sets the remaining bytes to zeroes from the last byte up until the new size */
     memset(message + total_length, 0, new_length - total_length);
+
+    /* Sets the last byte of the message to 1 */
     message[total_length] = 0x80;
     
+    /* Appends the bit length of the message to the end of the new message */
     for (i = 0; i < 8; i++) {
         message[new_length - 1 - i] = (bit_length >> (8 * i)) & 0xFF;
     }
     
+    /* Storing the length of the new message to the value pointed to by padded_length */
     *padded_length = new_length;
 
 }
@@ -126,7 +134,8 @@ void print_hash(uint32_t *H) {
 int main(int argc, char *argv[]) {
 
     size_t i, l, total_length = 0;
-    uint8_t m[128];
+    uint8_t m[64];
+    uint8_t last_chunk[64];
     uint64_t padded_length;
     FILE *fp;
 
@@ -142,33 +151,34 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    /* Reads the file fp into the buffer m up to 64 bytes */
     while ((l = fread(m, 1, sizeof(m), fp)) > 0) {
-        total_length += l;
-
+        
+	/* If the file hits the limit and is 64 bytes, process the chunk */
         if (l == 64) {
+
             process_chunk(m, H);
+
+	/* If it is the last chunk of the file (< 64 bytes), then
+	 * copy l bytes of the message m into last_chunk */
         } else {
-    
-            pad_message(m, total_length, &padded_length);
+	    
+            memcpy(last_chunk, m, l);
 
-            for (i = 0; i < padded_length; i += 64) {
-                process_chunk(m + i, H);
-            }
         }
-    }
 
-    /*
-    while ((l = fread(m, 1, 64, fp)) == 64) {
-
-        total_length += l;
-        process_chunk(m, H);
+	/* The total length of the file in bytes is incremented by l */
+	total_length += l;
 
     }
-
-    pad_message(m, total_length, &padded_length);
-
-    process_chunk(m, H);
-    */
+    
+    /* Handle padding */
+    pad_message(last_chunk, total_length, &padded_length);
+    
+    /* Process padded chunks */
+    for (i = 0; i < padded_length; i += 64) {
+        process_chunk(last_chunk + i, H);
+    }   
 
     print_hash(H);
 
