@@ -52,7 +52,7 @@ uint32_t K[64] = {
     0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
 };
 
-void pad_message(uint8_t *message, uint64_t total_length, uint64_t *padded_length) {
+unsigned char *pad_message(uint8_t *message, uint64_t last_chunk_length, uint64_t total_length, uint64_t *padded_length) {
 
     uint64_t i;
     uint64_t bit_length = total_length * 8;
@@ -60,20 +60,35 @@ void pad_message(uint8_t *message, uint64_t total_length, uint64_t *padded_lengt
     /* Calculates the new length of the message after padding
      * i.e. rounds down to the nearest multiple of 64 after adding bytes */
     uint64_t new_length = (total_length + 1 + 8 + 63) & ~63;
+    unsigned char *padded_message;
 
-    /* Sets the remaining bytes to zeroes from the last byte up until the new size */
-    memset(message + total_length, 0, new_length - total_length);
+    /* Empty the memory of padded_message for it to be copied into */
+    padded_message = (unsigned char*)calloc(new_length, 1);
+    if (!padded_message) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
 
+    /* Copy the last chunk into the padded message */
+    memcpy(padded_message, message, last_chunk_length);
+    
     /* Sets the last byte of the message to 1 */
-    message[total_length] = 0x80;
+    padded_message[last_chunk_length] = 0x80;
+  
+    /* Manually zeroing out the shit that needs to be zeroed out */
+    for (i = last_chunk_length + 1; i < new_length - 8; i++) {
+        padded_message[i] = 0;
+    }
     
     /* Appends the bit length of the message to the end of the new message */
     for (i = 0; i < 8; i++) {
-        message[new_length - 1 - i] = (bit_length >> (8 * i)) & 0xFF;
+	padded_message[new_length - 8 + i] = (bit_length >> (56 - i * 8)) & 0xFF;
     }
     
     /* Storing the length of the new message to the value pointed to by padded_length */
     *padded_length = new_length;
+
+    return padded_message;
 
 }
 
@@ -83,13 +98,13 @@ void process_chunk(const uint8_t *chunk, uint32_t *H) {
     uint32_t W[64];
     uint32_t a, b, c, d, e, f, g, h;
 
-    /* Load the chunk into the first 16 words (big-endian) */
+    /* Load the chunk into the first 16 words (big-endian), each stored in W[i] */
     for (i = 0; i < 16; i++) {
         W[i] = (chunk[i * 4] << 24) | (chunk[i * 4 + 1] << 16) |
                (chunk[i * 4 + 2] << 8) | chunk[i * 4 + 3];
     }
 
-    /* Extend the first 16 words into the remaining 48 words */
+    /* Extend the first 16 words into the remaining 48 words, deriving new words and diffusing information */
     for (i = 16; i < 64; i++) {
         W[i] = SIG1(W[i - 2]) + W[i - 7] + SIG0(W[i - 15]) + W[i - 16];
     }
@@ -98,7 +113,7 @@ void process_chunk(const uint8_t *chunk, uint32_t *H) {
     a = H[0]; b = H[1]; c = H[2]; d = H[3];
     e = H[4]; f = H[5]; g = H[6]; h = H[7];
 
-    /* Perform the 64 SHA-256 rounds */
+    /* Perform the 64 SHA-256 computation rounds */
     for (i = 0; i < 64; i++) {
         uint32_t T1 = h + BIG_SIG1(e) + CHOICE(e, f, g) + K[i] + W[i];
         uint32_t T2 = BIG_SIG0(a) + MEDIAN(a, b, c);
@@ -135,8 +150,8 @@ int main(int argc, char *argv[]) {
 
     size_t i, l, total_length = 0;
     uint8_t m[64];
-    uint8_t last_chunk[64];
     uint64_t padded_length;
+    unsigned char *padded_message;
     FILE *fp;
 
     if (!(argc > 1)) {
@@ -151,33 +166,23 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    /* Reads the file fp into the buffer m up to 64 bytes */
-    while ((l = fread(m, 1, sizeof(m), fp)) > 0) {
-        
-	/* If the file hits the limit and is 64 bytes, process the chunk */
-        if (l == 64) {
+    /* While the size of the chunk is 64 bytes, process it and increase the total length */
+    while ((l = fread(m, 1, sizeof(m), fp)) == 64) {
 
-            process_chunk(m, H);
+        process_chunk(m, H);
+        total_length += l;
 
-	/* If it is the last chunk of the file (< 64 bytes), then
-	 * copy l bytes of the message m into last_chunk */
-        } else {
-	    
-            memcpy(last_chunk, m, l);
+    } 
 
-        }
+    /* Increase total length one more time at the end */
+    total_length += l;
 
-	/* The total length of the file in bytes is incremented by l */
-	total_length += l;
+    /* Handle padding on the final chunk of m */
+    padded_message = pad_message(m, l, total_length, &padded_length);
 
-    }
-    
-    /* Handle padding */
-    pad_message(last_chunk, total_length, &padded_length);
-    
     /* Process padded chunks */
     for (i = 0; i < padded_length; i += 64) {
-        process_chunk(last_chunk + i, H);
+        process_chunk(padded_message + i, H);
     }   
 
     print_hash(H);
