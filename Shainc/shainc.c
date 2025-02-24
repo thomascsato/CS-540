@@ -56,11 +56,15 @@ unsigned char *pad_message(uint8_t *message, uint64_t last_chunk_length, uint64_
 
     uint64_t i;
     uint64_t bit_length = total_length * 8;
-
-    /* Calculates the new length of the message after padding
-     * i.e. rounds down to the nearest multiple of 64 after adding bytes */
-    uint64_t new_length = (total_length + 1 + 8 + 63) & ~63;
+    uint64_t new_length;
     unsigned char *padded_message;
+
+    /* Adds an extra chunk of zeroes based on if the 0x80 + bit length overflows >64 bytes */
+    if (last_chunk_length <= 55) {
+        new_length = 64;
+    } else {
+        new_length = 128;
+    }
 
     /* Empty the memory of padded_message for it to be copied into */
     padded_message = (unsigned char*)calloc(new_length, 1);
@@ -84,7 +88,7 @@ unsigned char *pad_message(uint8_t *message, uint64_t last_chunk_length, uint64_
     for (i = 0; i < 8; i++) {
 	padded_message[new_length - 8 + i] = (bit_length >> (56 - i * 8)) & 0xFF;
     }
-    
+
     /* Storing the length of the new message to the value pointed to by padded_length */
     *padded_length = new_length;
 
@@ -159,7 +163,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    fp = fopen(argv[1], "r"); /* read mode */
+    fp = fopen(argv[1], "rb"); /* read mode */
 
     if (fp == NULL) {
         fprintf(stderr, "fopen fails on argv[1] \"%s\", exiting...\n", argv[1]);
@@ -168,10 +172,8 @@ int main(int argc, char *argv[]) {
 
     /* While the size of the chunk is 64 bytes, process it and increase the total length */
     while ((l = fread(m, 1, sizeof(m), fp)) == 64) {
-
         process_chunk(m, H);
         total_length += l;
-
     } 
 
     /* Increase total length one more time at the end */
@@ -186,6 +188,8 @@ int main(int argc, char *argv[]) {
     }   
 
     print_hash(H);
+
+    free(padded_message);
 
     if (fclose(fp) == EOF) {
         fprintf(stderr, "fclose fails on argv[1] \"%s\", exiting...\n", argv[1]);
