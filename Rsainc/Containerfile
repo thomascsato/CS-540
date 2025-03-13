@@ -1,0 +1,5 @@
+FROM ubuntu
+
+RUN apt update && apt install gcc vim python3 astyle libgmp3-dev -y
+
+COPY Rsainc.c .
