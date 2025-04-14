@@ -1,0 +1,5 @@
+FROM alpine
+
+RUN apk add build-base gcc curl python3 vim
+
+COPY list_t.c list_t.h .
