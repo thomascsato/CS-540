@@ -6,45 +6,63 @@
 
 /* Internal structure to simulate a list */
 typedef struct {
+    /* Generic list of pointers */
     void **items;
+    /* Stores total size allocated */
     size_t capacity;
+    /* Stores length of the list */
     size_t length;
 } list_internal;
 
 #define INIT_CAPACITY 4
 
 /* Cast public type to internal structure */
+/* Not entirely sure what this means to be honest but it works */ 
 static list_internal *as_internal(list_t l) {
     return (list_internal *)l;
 }
 
 /* Create a new list */
 list_t list_new() {
+    /* Allocates memory for a list_internal struct */
     list_internal *li = (list_internal *)malloc(sizeof(list_internal));
+    /* Checks if memory allocation failed */
     if (li == NULL) exit(1);
 
+    /* Allocates space for the list of items from list_internal */
     li->items = (void **)malloc(sizeof(void *) * INIT_CAPACITY);
+    /* Checks if memory allocation failed */
     if (li->items == NULL) exit(1);
 
+    /* Initializes the other fields list capacity and length */
     li->capacity = INIT_CAPACITY;
     li->length = 0;
+
+    /* Casting internal structure as a list_t object and returns it */
     return (list_t)li;
 }
 
 /* Free memory used by list */
 void list_free(list_t l) {
+    /* Converts the list_l back to the internal structure */
     list_internal *li = as_internal(l);
+
+    /* Frees the array of items */
     free(li->items);
+    /* Frees the list_internal struct itself */
     free(li);
 }
 
 /* Print list contents */
 void list_print(list_t l) {
+    /* Converts the list_l back to the internal structure */
     list_internal *li = as_internal(l);
     size_t i;
 
+    /* Printing each element (li->items) of the list */
     printf("[");
     for (i = 0; i < li->length; i++) {
+	/* uintptr_t is an integer type that holds a pointer */
         printf("%lu", (uint64_t)(uintptr_t)li->items[i]);
         if (i < li->length - 1) {
             printf(", ");
